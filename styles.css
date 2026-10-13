@@ -383,8 +383,10 @@ select.chip { appearance: none; }
   border-radius: 8px;
   font-family: "Figtree", sans-serif;
   box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  white-space: nowrap;
 }
 .photos-btn:hover { background: var(--brand-tint); }
+.sale-badge { white-space: nowrap; }
 
 .title-block { padding: 26px 6px 6px; }
 .eyebrow {
@@ -502,7 +504,7 @@ select.chip { appearance: none; }
 .agent-name { font-size: 1.35rem; font-weight: 800; font-family: "Figtree", sans-serif; }
 .agent-broker { color: #c8d5e4; }
 .agent-contact { margin: 0 0 28px 80px; color: #dbe4ee; font-size: 1.02rem; }
-.agent-contact a { color: #fff; text-decoration: none; }
+.agent-contact a { color: #fff; text-decoration: none; overflow-wrap: anywhere; }
 .agent-contact a:hover { text-decoration: underline; }
 
 .showing-form {
@@ -539,12 +541,48 @@ select.chip { appearance: none; }
 @media (max-width: 640px) {
   .header-inner { padding: 10px 16px; }
   .brand-logo { height: 32px; }
-  .site-nav a { margin-left: 14px; font-size: .88rem; }
+  .site-nav { display: flex; align-items: center; }
+  .site-nav a { margin-left: 12px; font-size: .82rem; white-space: nowrap; }
+  .header-call { padding: 8px 14px !important; margin-left: 10px !important; font-size: .85rem; white-space: nowrap; }
   .hero { padding: 52px 18px 48px; }
   .toolbar { padding: 0 14px; }
+  .toolbar-card { padding: 14px 14px; gap: 10px; }
+  .chip { padding: 10px 18px; font-size: .92rem; }
   .grid-wrap { padding: 26px 14px 54px; }
+  .grid { gap: 18px; }
   .detail-wrap { padding: 28px 14px 54px; }
   .detail-body { padding: 22px 20px 26px; }
   .detail-visual { height: 210px; padding: 20px; }
   .btn { width: 100%; text-align: center; }
+
+  /* rich detail page — mobile */
+  .prop-hero { height: 260px; }
+  .sale-badge { top: 12px; left: 12px; font-size: .8rem; padding: 7px 12px 7px 10px; }
+  .hero-watermark { left: 12px; bottom: 12px; height: 38px; padding: 7px 10px; }
+  .photos-btn { right: 12px; bottom: 12px; font-size: .8rem; padding: 9px 13px; }
+  .detail-price { font-size: 1.9rem; }
+  .spec-tiles { margin-bottom: 18px; }
+  .spec-tile { padding: 14px 4px; }
+  .spec-num { font-size: 1.45rem; }
+  .spec-label { font-size: .78rem; }
+  .section { padding: 26px 4px 6px; }
+  .section h2 { font-size: 1.4rem; margin-bottom: 14px; }
+  .section.about p { font-size: 1rem; }
+  .gallery { gap: 10px; }
+  .features li { padding: 12px 4px; font-size: .98rem; }
+  .map-wrap iframe { height: 280px; }
+  .agent-cta { padding: 30px 20px; margin: 32px 0 10px; }
+  .agent-line { gap: 12px; }
+  .avatar { width: 52px; height: 52px; font-size: 1.15rem; }
+  .agent-name { font-size: 1.15rem; }
+  .agent-contact { margin: 2px 0 24px 0; font-size: .95rem; }
+  .showing-form { padding: 24px 18px; }
+  .showing-form input, .showing-form textarea { padding: 12px; font-size: 16px; }
+  .contact-card { padding: 26px 20px; margin: 28px auto 54px; }
+  .tag { padding: 8px 13px; font-size: .85rem; }
+}
+
+/* short landscape phones */
+@media (max-width: 640px) and (max-height: 420px) {
+  .prop-hero { height: 200px; }
 }
