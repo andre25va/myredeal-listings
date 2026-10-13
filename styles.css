@@ -539,11 +539,12 @@ select.chip { appearance: none; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 640px) {
-  .header-inner { padding: 10px 16px; }
-  .brand-logo { height: 32px; }
-  .site-nav { display: flex; align-items: center; }
-  .site-nav a { margin-left: 12px; font-size: .82rem; white-space: nowrap; }
-  .header-call { padding: 8px 14px !important; margin-left: 10px !important; font-size: .85rem; white-space: nowrap; }
+  .header-inner { padding: 10px 16px; flex-wrap: nowrap; }
+  .brand-logo { height: 24px; }
+  .site-nav { display: flex; align-items: center; flex-shrink: 0; }
+  .site-nav a { margin-left: 10px; font-size: .8rem; white-space: nowrap; }
+  .site-nav a[href="/contact"] { display: none; }
+  .header-call { padding: 8px 12px !important; margin-left: 8px !important; font-size: .8rem; white-space: nowrap; flex-shrink: 0; }
   .hero { padding: 52px 18px 48px; }
   .toolbar { padding: 0 14px; }
   .toolbar-card { padding: 14px 14px; gap: 10px; }
@@ -558,7 +559,7 @@ select.chip { appearance: none; }
   /* rich detail page — mobile */
   .prop-hero { height: 260px; }
   .sale-badge { top: 12px; left: 12px; font-size: .8rem; padding: 7px 12px 7px 10px; }
-  .hero-watermark { left: 12px; bottom: 12px; height: 38px; padding: 7px 10px; }
+  .hero-watermark { left: auto; right: 12px; top: 12px; bottom: auto; height: 26px; padding: 5px 8px; }
   .photos-btn { right: 12px; bottom: 12px; font-size: .8rem; padding: 9px 13px; }
   .detail-price { font-size: 1.9rem; }
   .spec-tiles { margin-bottom: 18px; }
