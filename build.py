@@ -10,7 +10,11 @@ Listing fields:
   beds, baths (int or null), sqft (int or null), sqft_approx (bool),
   type ("Single-family" | "Multi-family"), agent (str or null), note (str or null),
   agent_phone (str or null), agent_email (str or null),
-  description (str or null — listing remarks, rendered verbatim when present)
+  description (str or null — listing remarks, rendered verbatim when present),
+  features (list[str] — property feature bullets),
+  photos (list[str] — local /assets/photos/<slug>/N.jpg paths),
+  mls (str or null), year_built (int or null), lot_size (str or null),
+  status (str — defaults to "For Sale")
 
 Per-listing agent contact (agent_phone / agent_email) overrides the site-wide
 defaults (EMAIL / PHONE_DISPLAY) on that listing's detail page.
@@ -72,6 +76,11 @@ def gradient_for(slug):
     return GRADIENTS[abs(hash(slug)) % len(GRADIENTS)]
 
 
+def hero_photo(lst):
+    photos = lst.get("photos") or []
+    return photos[0] if photos else None
+
+
 def agent_contact(lst):
     """Per-listing agent contact, falling back to the site-wide defaults.
 
@@ -98,7 +107,16 @@ def agent_contact(lst):
     return name, email, phone_display, phone_tel
 
 
-def header():
+def initials(name):
+    parts = [p for p in re.split(r"\s+", name.strip()) if p and p[0].isalpha()]
+    return "".join(p[0].upper() for p in parts[:2]) or "ROA"
+
+
+def header(call_tel=None, call_display=None):
+    call_btn = ""
+    if call_tel:
+        label = esc(call_display or "Call")
+        call_btn = (f'<a class="header-call" href="tel:{esc(call_tel)}">{label}</a>')
     return f"""<header class="site-header">
   <div class="header-inner">
     <a class="brand-link" href="/"><img class="brand-logo" src="/assets/roa-logo-white-on-blue.png" alt="Realty of America"></a>
@@ -106,36 +124,36 @@ def header():
       <a href="/">All listings</a>
       <a href="/contact">Contact</a>
     </nav>
+    {call_btn}
   </div>
 </header>"""
 
 
-def footer():
+def footer(lst=None):
+    if lst:
+        courtesy = (f"Listing courtesy of {lst['agent']}, Realty of America."
+                    if lst.get("agent") else "Listing courtesy of Realty of America.")
+        mls_line = (f"<p>MLS# {esc(lst['mls'])} &middot; Heartland MLS</p>"
+                    if lst.get("mls") else "")
+        addr_line = f"<p>{esc(full_address(lst))}</p>"
+    else:
+        courtesy = "Every active Realty of America listing across the Kansas City metro &mdash; one page."
+        mls_line = ""
+        addr_line = ""
     return f"""<footer class="site-footer">
   <div class="footer-inner">
     <img class="footer-logo" src="/assets/roa-logo-green-triangle.png" alt="Realty of America">
-    <div class="footer-grid">
-      <div>
-        <h3>MyReDeal Listings</h3>
-        <p>Every active Realty of America listing across the Kansas City metro &mdash; one page.</p>
-      </div>
-      <div>
-        <h3>Contact</h3>
-        <p><a href="mailto:{EMAIL}">{EMAIL}</a><br>
-        <a href="tel:{PHONE_TEL}">{PHONE_DISPLAY}</a><br>
-        {esc(OFFICE)}</p>
-      </div>
-      <div>
-        <h3>Browse</h3>
-        <p><a href="/">All listings</a><br><a href="/contact">Contact us</a></p>
-      </div>
-    </div>
+    {addr_line}
+    <p>{courtesy}</p>
+    {mls_line}
+    <p>Information deemed reliable but not guaranteed.</p>
+    <p>Equal Housing Opportunity. We support fair housing and equal opportunity in housing.</p>
     <div class="fine-print">{esc(FINE_PRINT)}</div>
   </div>
 </footer>"""
 
 
-def page(title, body, description=""):
+def page(title, body, description="", call_tel=None, call_display=None, listing=None):
     desc_tag = (f'<meta name="description" content="{esc(description)}">' if description else "")
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -150,9 +168,9 @@ def page(title, body, description=""):
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-{header()}
+{header(call_tel, call_display)}
 {body}
-{footer()}
+{footer(listing)}
 </body>
 </html>
 """
@@ -169,10 +187,15 @@ def build_index(listings):
                       if lst.get("agent") else "")
         note_html = (f'<div class="card-note">{esc(lst["note"])}</div>'
                      if lst.get("note") else "")
+        photo = hero_photo(lst)
+        if photo:
+            visual = (f'<div class="card-visual has-photo" style="background-image:url(\'{esc(photo)}\')">'
+                      f'<div class="addr">{esc(lst["address"])}</div></div>')
+        else:
+            visual = (f'<div class="card-visual" style="background:{gradient_for(lst["slug"])}">'
+                      f'<div class="addr">{esc(lst["address"])}<br><span style="font-weight:400;font-size:.85rem;opacity:.9">{esc(lst["city"])}, {esc(lst["state"])} {esc(lst["zip"])}</span></div></div>')
         cards.append(f"""<article class="card" data-city="{esc(city_group(lst))}" data-price="{lst['price']}">
-  <div class="card-visual" style="background:{gradient_for(lst['slug'])}">
-    <div class="addr">{esc(lst['address'])}<br><span style="font-weight:400;font-size:.85rem;opacity:.9">{esc(lst['city'])}, {esc(lst['state'])} {esc(lst['zip'])}</span></div>
-  </div>
+  {visual}
   <div class="card-body">
     <div class="card-price">{fmt_price(lst['price'])}</div>
     <div class="card-specs">{esc(specs_line(lst))} &middot; {esc(lst['type'])}</div>
@@ -253,90 +276,192 @@ def build_index(listings):
                 "Every active Realty of America listing across the Kansas City metro — one page.")
 
 
-def describe(lst):
-    """Honest description built only from known facts. Never invents features."""
-    addr = full_address(lst)
-    bits = [f"{addr} is listed at {fmt_price(lst['price'])}."]
-    facts = []
-    if lst.get("beds") and lst.get("baths"):
-        facts.append(f"{lst['beds']}-bedroom, {lst['baths']}-bath")
+def spec_tiles(lst):
+    tiles = []
+    if lst.get("beds"):
+        tiles.append(("Beds", str(lst["beds"]), "Beds"))
+    if lst.get("baths"):
+        b = lst["baths"]
+        b_str = str(int(b)) if float(b) == int(float(b)) else str(b)
+        tiles.append((b_str, "Baths", "Baths"))
     if lst.get("sqft"):
-        sq = f"{lst['sqft']:,} square feet"
-        facts.append(("about " if lst.get("sqft_approx") else "") + sq)
-    facts.append(lst["type"].lower())
-    bits.append("This " + ", ".join(facts) + ".")
-    if lst.get("sqft") and not lst.get("sqft_approx"):
-        ppsf = lst["price"] / lst["sqft"]
-        bits.append(f"That works out to about ${ppsf:,.0f} per square foot.")
-    if lst.get("agent"):
-        bits.append(f"Listed by {lst['agent']}.")
-    if lst.get("note"):
-        bits.append(lst["note"][0].upper() + lst["note"][1:] + ".")
-    bits.append("Contact the listing agent to confirm availability, price, and details before making plans.")
-    return " ".join(bits)
+        sq = f"{lst['sqft']:,}"
+        if lst.get("sqft_approx"):
+            sq = "~" + sq
+        tiles.append((sq, "Sq Ft", "Square feet"))
+    if lst.get("lot_size"):
+        tiles.append((lst["lot_size"], "Lot", "Lot size"))
+    return "".join(
+        f'<div class="spec-tile"><div class="spec-num">{esc(v)}</div><div class="spec-label">{esc(l)}</div></div>'
+        for v, l, _ in tiles)
 
 
 def build_detail(lst):
-    rows = []
-    if lst.get("beds"):
-        rows.append(("Bedrooms", str(lst["beds"])))
-    if lst.get("baths"):
-        rows.append(("Bathrooms", str(lst["baths"])))
-    if lst.get("sqft"):
-        sq = f"{lst['sqft']:,} sqft"
-        if lst.get("sqft_approx"):
-            sq = "About " + sq
-        rows.append(("Living area", sq))
-    rows.append(("Property type", lst["type"]))
-    if lst.get("agent"):
-        rows.append(("Listing agent", lst["agent"]))
-    rows.append(("Brokerage", "Realty of America"))
-    fact_rows = "".join(f"<tr><th>{esc(k)}</th><td>{esc(v)}</td></tr>" for k, v in rows)
-
-    note_html = (f'<div class="detail-note">{esc(lst["note"][0].upper() + lst["note"][1:])}.</div>'
-                 if lst.get("note") else "")
-    remarks_html = (f'<h3 class="remarks-title">Listing remarks</h3>'
-                    f'<p class="detail-desc">{esc(lst["description"])}</p>'
-                    if lst.get("description") else "")
+    photos = lst.get("photos") or []
+    n_photos = len(photos)
+    status = lst.get("status") or "For Sale"
     agent_name, agent_email, agent_phone_display, agent_phone_tel = agent_contact(lst)
-    maps_url = ("https://www.google.com/maps/search/?api=1&query=" +
-                urllib.parse.quote_plus(full_address(lst)))
-    inquiry_subject = urllib.parse.quote("Inquiry: " + full_address(lst))
+    addr = full_address(lst)
+    maps_embed = ("https://www.google.com/maps?q=" + urllib.parse.quote_plus(addr) + "&output=embed")
+    inquiry_subject = urllib.parse.quote("Showing request: " + addr)
 
-    body = f"""<main class="detail-wrap">
-  <div class="breadcrumb"><a href="/">&larr; All listings</a></div>
-  <div class="detail-hero">
-    <div class="detail-visual" style="background:{gradient_for(lst['slug'])}">
-      <div class="addr">
-        <h1>{esc(lst['address'])}</h1>
-        <div class="sub">{esc(lst['city'])}, {esc(lst['state'])} {esc(lst['zip'])}</div>
-      </div>
+    # Hero
+    hero = hero_photo(lst)
+    if hero:
+        hero_style = f"background-image:url('{esc(hero)}')"
+        hero_cls = "prop-hero has-photo"
+    else:
+        hero_style = f"background:{gradient_for(lst['slug'])}"
+        hero_cls = "prop-hero"
+    hero_html = f"""<section class="{hero_cls}" style="{hero_style}">
+    <span class="sale-badge">{esc(status)}</span>
+    <img class="hero-watermark" src="/assets/roa-logo-white-on-blue.png" alt="Realty of America">
+    {'<a class="photos-btn" href="#photos">View all ' + str(n_photos) + ' photos &#8599;</a>' if n_photos > 1 else ''}
+  </section>"""
+
+    # Title block
+    mls_line = (f'<div class="mls-line">MLS# {esc(lst["mls"])} &middot; Heartland MLS</div>'
+                if lst.get("mls") else "")
+    title_html = f"""<section class="title-block">
+    <div class="eyebrow">{esc(lst['city'])}, {esc(lst['state'])}</div>
+    <h1>{esc(lst['address'])}</h1>
+    <div class="title-sub">{esc(lst['city'])}, {esc(lst['state'])} {esc(lst['zip'])}</div>
+    <div class="detail-price">{fmt_price(lst['price'])}</div>
+    {mls_line}
+  </section>"""
+
+    # Specs + CTAs
+    cta_html = f"""<section class="cta-band">
+    <div class="spec-tiles">{spec_tiles(lst)}</div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#showing">Schedule a Showing &#8599;</a>
+      <a class="btn btn-outline" href="tel:{esc(agent_phone_tel)}">Call</a>
+      <a class="btn btn-outline" href="sms:{esc(agent_phone_tel)}">Text</a>
     </div>
-    <div class="detail-body">
-      <div class="detail-price">{fmt_price(lst['price'])}</div>
-      {note_html}
-      <table class="facts">
-        {fact_rows}
-      </table>
-      <p class="detail-desc">{esc(describe(lst))}</p>
-      {remarks_html}
-      <div class="cta-row">
-        <a class="btn btn-primary" href="{maps_url}" target="_blank" rel="noopener">Get directions</a>
-        <a class="btn btn-cta" href="/contact">Contact about this home</a>
-      </div>
-      <div class="agent-card">
-        <h2>Interested in <span class="accent">{esc(lst['address'])}</span>?</h2>
-        <p>Reach out and {esc(agent_name)} will get back to you about {esc(full_address(lst))}.</p>
-        <div class="cta-row">
-          <a class="btn btn-cta" href="mailto:{esc(agent_email)}?subject={inquiry_subject}">Email {esc(agent_name)}</a>
-          <a class="btn btn-outline" style="border-color:#fff;color:#fff" href="tel:{esc(agent_phone_tel)}">{esc(agent_phone_display)}</a>
-        </div>
-      </div>
-    </div>
+  </section>"""
+
+    # Gallery
+    if photos:
+        thumbs = "".join(
+            f'<button class="thumb" data-full="{esc(p)}" aria-label="Enlarge photo {i+1}">'
+            f'<img loading="lazy" src="{esc(p)}" alt="{esc(lst["address"])} photo {i+1}"></button>'
+            for i, p in enumerate(photos))
+        gallery_html = f"""<section class="section" id="photos">
+    <div class="eyebrow">A closer look at home</div>
+    <h2>{n_photos} photos &middot; <span class="muted-sm">Select to enlarge</span></h2>
+    <div class="gallery">{thumbs}</div>
+  </section>
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lb-close" aria-label="Close">&times;</button>
+    <img id="lb-img" src="" alt="Enlarged listing photo">
   </div>
+  <script>
+  (function(){{
+    var lb=document.getElementById('lightbox'),img=document.getElementById('lb-img');
+    document.querySelectorAll('.thumb').forEach(function(t){{
+      t.addEventListener('click',function(){{img.src=t.dataset.full;lb.hidden=false;document.body.style.overflow='hidden';}});
+    }});
+    function close(){{lb.hidden=true;img.src='';document.body.style.overflow='';}}
+    lb.addEventListener('click',close);
+    document.querySelector('.lb-close').addEventListener('click',close);
+    document.addEventListener('keydown',function(e){{if(e.key==='Escape')close();}});
+  }})();
+  </script>"""
+    else:
+        gallery_html = ""
+
+    # About
+    about_html = ""
+    if lst.get("description"):
+        tags = []
+        if lst.get("type"):
+            tags.append(lst["type"])
+        if lst.get("year_built"):
+            tags.append(f"Built in {lst['year_built']}")
+        tag_html = "".join(f'<span class="tag">{esc(t)}</span>' for t in tags)
+        paras = "".join(f"<p>{esc(p.strip())}</p>"
+                        for p in re.split(r"\n{2,}|\r\n\r\n", lst["description"]) if p.strip())
+        about_html = f"""<section class="section about">
+    <div class="eyebrow">Space for your everyday</div>
+    <h2>About this home</h2>
+    {paras}
+    <div class="tag-row">{tag_html}</div>
+  </section>"""
+
+    # Features
+    features_html = ""
+    if lst.get("features"):
+        items = "".join(f'<li><span class="check">&check;</span> {esc(f)}</li>'
+                        for f in lst["features"])
+        features_html = f"""<section class="section">
+    <div class="eyebrow">The details that matter</div>
+    <h2>Property features</h2>
+    <ul class="features">{items}</ul>
+  </section>"""
+
+    # Map
+    map_html = f"""<section class="section">
+    <div class="eyebrow">Explore the location</div>
+    <h2>Find your way home</h2>
+    <div class="map-wrap"><iframe title="Map of {esc(addr)}" src="{esc(maps_embed)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+    <p class="map-addr">{esc(addr)}</p>
+  </section>"""
+
+    # Agent card + showing form
+    form_id = "showing-form"
+    agent_html = f"""<section class="agent-cta" id="showing">
+    <div class="eyebrow light">See it for yourself</div>
+    <h2>Let&rsquo;s get you<br>through the door.</h2>
+    <p class="agent-sub">Request a showing or ask a question.</p>
+    <div class="agent-line">
+      <span class="avatar">{esc(initials(agent_name))}</span>
+      <div>
+        <div class="agent-name">{esc(agent_name)}</div>
+        <div class="agent-broker">Realty of America</div>
+      </div>
+    </div>
+    <div class="agent-contact">
+      <a href="tel:{esc(agent_phone_tel)}">{esc(agent_phone_display)}</a><br>
+      <a href="mailto:{esc(agent_email)}">{esc(agent_email)}</a>
+    </div>
+    <form class="showing-form" id="{form_id}">
+      <h3>Schedule a showing</h3>
+      <p class="req-note">Fields marked * are required.</p>
+      <label>Name *<input required name="name" type="text" autocomplete="name"></label>
+      <label>Phone *<input required name="phone" type="tel" autocomplete="tel"></label>
+      <label>Email *<input required name="email" type="email" autocomplete="email"></label>
+      <label>Message *<textarea required name="message" rows="4">I&rsquo;d like to schedule a showing for {esc(addr)}.</textarea></label>
+      <button class="btn btn-primary" type="submit">Request a Showing &#8599;</button>
+      <p class="form-note">Submitting opens your email app addressed to {esc(agent_name)} &mdash; no account needed.</p>
+    </form>
+  </section>
+  <script>
+  (function(){{
+    var f=document.getElementById('{form_id}');
+    f.addEventListener('submit',function(e){{
+      e.preventDefault();
+      var d=new FormData(f);
+      var subject=encodeURIComponent('Showing request: {esc(addr)}');
+      var body=encodeURIComponent('Name: '+d.get('name')+'\\nPhone: '+d.get('phone')+'\\nEmail: '+d.get('email')+'\\n\\n'+d.get('message'));
+      window.location.href='mailto:{esc(agent_email)}?subject='+subject+'&body='+body;
+    }});
+  }})();
+  </script>"""
+
+    body = f"""<main class="detail-wrap rich">
+  <div class="breadcrumb"><a href="/">&larr; All listings</a></div>
+  {hero_html}
+  {title_html}
+  {cta_html}
+  {gallery_html}
+  {about_html}
+  {features_html}
+  {map_html}
+  {agent_html}
 </main>"""
     return page(f"{lst['address']} — {fmt_price(lst['price'])} | MyReDeal Listings", body,
-                f"{full_address(lst)} listed at {fmt_price(lst['price'])}. {specs_line(lst)}.")
+                f"{addr} listed at {fmt_price(lst['price'])}. {specs_line(lst)}.",
+                call_tel=agent_phone_tel, call_display="Call", listing=lst)
 
 
 def build_contact():
